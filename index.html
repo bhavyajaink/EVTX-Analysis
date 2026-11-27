@@ -39,7 +39,15 @@ input{font:inherit;background:var(--bg);color:var(--fg);border:1px solid var(--b
 .gap{width:8px!important}
 .ok{color:#1d9e75;font-weight:600}.bad{color:#e24b4a;font-weight:600}
 code{font-family:ui-monospace,Menlo,monospace;font-size:13px}
-</style></head><body><main>
+
+/* no-copy protection */
+html,body,main,section,.card,.hex,table,td,th,p,h1,h2,code,pre{-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none;-webkit-touch-callout:none}
+input,textarea{-webkit-user-select:text;-moz-user-select:text;user-select:text}
+/* tiled watermark */
+#cb-mark{position:fixed;inset:0;z-index:9999;pointer-events:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='360' height='200'><text x='20' y='120' transform='rotate(-25 180 100)' font-family='Segoe UI,Arial,sans-serif' font-size='22' font-weight='600' fill='%23888' fill-opacity='0.22'>Created by bhavyajaink</text></svg>");background-repeat:repeat;background-size:360px 200px}
+</style></head><body>
+<!-- createdby bhavyajaink -->
+<div id="cb-mark" aria-hidden="true"></div><main>
 <h1>Windows EVTX file: understand it byte by byte</h1>
 <p class="mut">All the data below is generated on this page (a small sample that mimics a real .evtx file). Click any byte to see the field name, offset and value.</p>
 <nav id="nav"></nav>
@@ -318,4 +326,26 @@ function show(i){document.querySelectorAll('section').forEach((s,k)=>s.classList
 document.querySelectorAll('#nav button').forEach((b,k)=>b.classList.toggle('on',k==i))}
 $('#nav').onclick=e=>{const b=e.target.closest('button');if(b)show(+b.dataset.t)};
 show(0);
-</script></body></html>
+</script>
+<script>
+/* createdby bhavyajaink */
+(function(){
+ function ok(t){return t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA');}
+ ['copy','cut','dragstart','selectstart','contextmenu'].forEach(function(ev){
+  document.addEventListener(ev,function(e){
+   if((ev==='selectstart'||ev==='copy'||ev==='cut')&&ok(e.target))return;
+   e.preventDefault();
+  },true);
+ });
+ document.addEventListener('copy',function(e){
+  if(ok(e.target))return;
+  try{e.clipboardData.setData('text/plain','');}catch(_){}
+  e.preventDefault();
+ },true);
+ document.addEventListener('keydown',function(e){
+  var k=(e.key||'').toLowerCase();
+  if((e.ctrlKey||e.metaKey)&&(k==='c'||k==='x'||k==='a'||k==='u'||k==='s')&&!ok(e.target))e.preventDefault();
+ },true);
+})();
+</script>
+</body></html>
