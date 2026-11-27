@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>EVTX Format: Hands-on Guide</title>
+<style>
+:root{--bg:#fff;--fg:#1a1a1a;--mut:#666;--card:#f4f4f0;--bd:#d8d8d0;--ac:#0f6e56;
+--c0:#ffb4a2;--c1:#ffd98a;--c2:#b8e0a0;--c3:#9fd3e6;--c4:#c9b6f0;--c5:#f5a9d0;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#17181a;--fg:#ececec;--mut:#9a9a9a;--card:#232528;--bd:#3a3d41;--ac:#5dcaa5;
+--c0:#8a3d2c;--c1:#7a5f1a;--c2:#3b6a26;--c3:#1f5a70;--c4:#53388a;--c5:#8a2f5f}}
+:root[data-theme="dark"]{--bg:#17181a;--fg:#ececec;--mut:#9a9a9a;--card:#232528;--bd:#3a3d41;--ac:#5dcaa5;
+--c0:#8a3d2c;--c1:#7a5f1a;--c2:#3b6a26;--c3:#1f5a70;--c4:#53388a;--c5:#8a2f5f}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:860px;margin:0 auto;padding:16px}
+h1{font-size:22px;margin:4px 0}h2{font-size:17px;margin:18px 0 6px}
+p{margin:6px 0}.mut{color:var(--mut);font-size:13px}
+nav{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}
+nav button,.btn{background:var(--card);color:var(--fg);border:1px solid var(--bd);border-radius:8px;padding:7px 12px;font:inherit;cursor:pointer}
+nav button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+section{display:none}section.on{display:block}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:12px;margin:10px 0}
+.hex{font:13px/1.9 ui-monospace,Menlo,Consolas,monospace;overflow-x:auto;white-space:pre}
+.hex .off{color:var(--mut);margin-right:10px}
+.b{padding:2px 1px;border-radius:3px;cursor:pointer;margin-right:2px;color:var(--fg)}
+.b.sel{outline:2px solid var(--fg)}
+.asc{margin-left:10px;color:var(--mut)}
+.info{min-height:64px;border-left:4px solid var(--ac)}
+.tw{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:13px}
+td,th{border-bottom:1px solid var(--bd);padding:5px 7px;text-align:left;vertical-align:top}
+tr.f{cursor:pointer}tr.f.sel{background:var(--card)}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:middle}
+.bar{display:flex;height:46px;border:1px solid var(--bd);border-radius:8px;overflow:hidden;font-size:12px;margin:8px 0}
+.bar div{display:flex;align-items:center;justify-content:center;text-align:center;padding:0 4px;overflow:hidden}
+input{font:inherit;background:var(--bg);color:var(--fg);border:1px solid var(--bd);border-radius:6px;padding:6px 8px;width:100%;max-width:300px}
+.bits{display:flex;flex-wrap:wrap;gap:2px;margin:8px 0}
+.bits span{width:20px;text-align:center;font:12px ui-monospace,monospace;padding:3px 0;border-radius:3px}
+.gap{width:8px!important}
+.ok{color:#1d9e75;font-weight:600}.bad{color:#e24b4a;font-weight:600}
+code{font-family:ui-monospace,Menlo,monospace;font-size:13px}
+</style></head><body><main>
+<h1>Windows EVTX file: understand it byte by byte</h1>
+<p class="mut">All the data below is generated on this page (a small sample that mimics a real .evtx file). Click any byte to see the field name, offset and value.</p>
+<nav id="nav"></nav>
+
+<section id="s0">
+<h2>1. The big picture of the file</h2>
+<p>EVTX file = <b>File header (4096 bytes)</b> + <b>Chunks (65536 bytes each)</b>. Inside every chunk: a 512-byte chunk header, then the event records, then unused space.</p>
+<div class="bar" id="bar1"></div>
+<div class="bar" id="bar2"></div>
+<div class="card">
+<b>Chunk offset calculator</b> &nbsp; chunk number:
+<input id="cn" type="number" min="0" value="2" style="width:90px">
+<p id="cnout"></p>
+<p class="mut">Formula: offset = 4096 + (chunk number × 65536). File size = (chunks × 65536) + 4096.</p></div>
+<div class="card"><b>Key things to remember</b>
+<p>• Everything is <b>little-endian</b>: 0x1000 as a 4-byte value is stored as <code>00 10 00 00</code>.<br>
+• Time values are <b>FILETIME</b>: 100-nanosecond ticks since 1 January 1601 (UTC).<br>
+• Strings are <b>UTF-16LE</b>: "A" = <code>41 00</code>.</p></div>
+</section>
+
+<section id="s1">
+<h2>2. File header (first 128 bytes)</h2>
+<p>The remaining 3968 bytes are zeros. The checksum is a real CRC-32 calculated over the first 120 bytes.</p>
+<div class="card hex" id="hx1"></div>
+<div class="card info" id="in1">Click on any byte.</div>
+<div class="card tw"><table id="tb1"></table></div>
+</section>
+
+<section id="s2">
+<h2>3. Chunk header (first 128 bytes)</h2>
+<p>Both the records checksum and the header checksum are calculated live. Header checksum = CRC32(bytes 0 to 120 + bytes 128 to 512).</p>
+<div class="card hex" id="hx2"></div>
+<div class="card info" id="in2">Click on any byte.</div>
+<div class="card tw"><table id="tb2"></table></div>
+</section>
+
+<section id="s3">
+<h2>4. One event record + Binary XML</h2>
+<p>This record sits at offset 512 of the chunk. Inside are Binary XML tokens that build <code>&lt;EventID&gt;400&lt;/EventID&gt;</code> (a simplified version for teaching).</p>
+
+<div class="card hex" id="hx3"></div>
+<div class="card info" id="in3">Click on any byte.</div>
+<div class="card"><b>Decoded to XML:</b> <code id="xml"></code>
+<p>Record check: size = <span id="sz"></span>, copy of size = <span id="cp"></span> → <span id="chk"></span></p>
+<button class="btn" id="corrupt">Corrupt the record (copy of size = 0)</button>
+<button class="btn" id="fix">Fix it</button>
+<p class="mut">This is the first test during recovery: size and copy of size must match. If they differ, the record is considered corrupt.</p></div>
+<div class="card tw"><table id="tb3"></table></div>
+</section>
+
+<section id="s5">
+<h2>5. Event record with Qualifiers</h2>
+<p>XML: <code>&lt;EventID Qualifiers="16384"&gt;7036&lt;/EventID&gt;</code>. Same structure as the previous record, but the EventID element now has an attribute list.</p>
+<div class="card hex" id="hx4"></div>
+<div class="card info" id="in4">Click on any byte.</div>
+<div class="card"><b>Decoded to XML:</b> <code>&lt;EventID Qualifiers="16384"&gt;7036&lt;/EventID&gt;</code>
+<p>Record check: size = <span id="sz4"></span>, copy of size = <span id="cp4"></span> → <span id="chk4"></span></p>
+<button class="btn" id="corrupt4">Corrupt the record (copy of size = 0)</button>
+<button class="btn" id="fix4">Fix it</button></div>
+<div class="card"><b>Basic record vs Qualifiers record</b>
+<div class="tw"><table><tr><th>Item</th><th>Basic record</th><th>With Qualifiers</th></tr>
+<tr><td>Open start element token (offset 28)</td><td>0x01 (no attributes)</td><td>0x41 (attribute list follows)</td></tr>
+<tr><td>Record size</td><td>56</td><td>81</td></tr>
+<tr><td>Element data size (offset 31)</td><td>16</td><td>41</td></tr>
+<tr><td>Attribute list</td><td>none</td><td>offset 39 to 62 (4-byte size + 19 bytes)</td></tr>
+<tr><td>Where is Qualifiers?</td><td>not present</td><td>value at offset 52: 31 00 36 00 33 00 38 00 34 00 (&quot;16384&quot; in UTF-16LE)</td></tr>
+<tr><td>Where is EventID?</td><td>offset 44: &quot;400&quot;</td><td>offset 67: &quot;7036&quot;</td></tr></table></div>
+<p class="mut">Hex search tip: search for the UTF-16LE bytes of 16384 (31 00 36 00 33 00 38 00 34 00) to land directly on the Qualifiers value.</p></div>
+<div class="card tw"><table id="tb4"></table></div>
+</section>
+
+<section id="s4">
+<h2>6. Working with bits</h2>
+<div class="card"><b>Event ID + Qualifiers → Message ID</b>
+<p>Qualifiers (decimal): <input id="q" value="16384"> &nbsp;EventID (decimal): <input id="e" value="7036"></p>
+<p>Message ID = (Qualifiers &lt;&lt; 16) | EventID = <code id="mid"></code></p>
+<div class="bits" id="bits"></div>
+<p class="mut">Bit layout: Code = 16 bit, Facility = 12 bit, Reserved = 1 bit, Customer = 1 bit, Severity = 2 bit.</p>
+<div id="bitout"></div></div>
+<div class="card"><b>FILETIME → date</b>
+<p><input id="ft" style="max-width:380px"> <button class="btn" id="now">Current time</button></p>
+<p id="ftout"></p>
+<p class="mut">Formula: (FILETIME − 116444736000000000) ÷ 10000 = Unix milliseconds.</p></div>
+</section>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+function crc32(b){let t=[],c;for(let n=0;n<256;n++){c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}
+let r=0xFFFFFFFF;for(const x of b)r=t[(r^x)&255]^(r>>>8);return(r^0xFFFFFFFF)>>>0}
+function put(a,o,v,n){v=BigInt(v);for(let i=0;i<n;i++)a[o+i]=Number((v>>BigInt(8*i))&255n)}
+function puts(a,o,s){for(let i=0;i<s.length;i++)a[o+i]=s.charCodeAt(i)}
+const H=n=>n.toString(16).padStart(2,'0');
+const FT0=116444736000000000n;
+const toFT=ms=>BigInt(ms)*10000n+FT0;
+const ftDate=v=>{try{return new Date(Number((BigInt(v)-FT0)/10000n)).toISOString().replace('T',' ').replace('Z',' UTC')}catch(e){return 'invalid'}};
+const T=toFT(Date.UTC(2026,10,17,10,30,0));
+
+// ---- File header
+const fh=new Array(128).fill(0);
+puts(fh,0,"ElfFile");put(fh,8,0,8);put(fh,16,0,8);put(fh,24,2,8);put(fh,32,128,4);put(fh,36,1,2);put(fh,38,3,2);put(fh,40,4096,2);put(fh,42,1,4);
+put(fh,120,0,4);put(fh,124,crc32(fh.slice(0,120)),4);
+const fhF=[
+["Signature",0,8,"s","Always ElfFile + 00. Identifies the file as EVTX."],
+["First chunk number",8,8,"i","Number of the first chunk."],
+["Last chunk number",16,8,"i","Number of the last chunk."],
+["Next record identifier",24,8,"i","Next event record ID to be written (1 record exists, so 2)."],
+["Header size",32,4,"i","Always 128."],
+["Minor version",36,2,"i","3.1 = Vista+, 3.2 = Windows 10 (2004)+."],
+["Major version",38,2,"i","Major version 3."],
+["Header block size",40,2,"i","4096 = offset where the chunks start."],
+["Number of chunks",42,4,"i","How many chunks the file contains."],
+["Unknown (zeros)",46,74,"r","Unknown/empty in the spec."],
+["File flags",120,4,"h","0x0001 = dirty, 0x0002 = full."],
+["Checksum",124,4,"h","CRC32 of the first 120 bytes. Change any byte and this will no longer match."]];
+
+// ---- Record
+const rec=new Array(56).fill(0);
+put(rec,0,0x2a2a,4);put(rec,4,56,4);put(rec,8,1,8);put(rec,16,T,8);
+rec[24]=0x0f;rec[25]=1;rec[26]=1;rec[27]=0;
+rec[28]=0x01;put(rec,29,0xffff,2);put(rec,31,16,4);put(rec,35,0x230,4);
+rec[39]=0x02;rec[40]=0x05;rec[41]=0x01;put(rec,42,3,2);
+"400".split('').forEach((c,i)=>{rec[44+2*i]=c.charCodeAt(0)});
+rec[50]=0x04;rec[51]=0x00;put(rec,52,56,4);
+const recF=[
+["Signature",0,4,"h","2a 2a 00 00 = start of a record."],
+["Size",4,4,"i","Size of the whole record (including signature, size and copy of size)."],
+["Event record identifier",8,8,"i","Unique ID of the record."],
+["Written date/time",16,8,"t","FILETIME: when the record was written."],
+["Fragment header token",24,1,"h","0x0f = BinXmlFragmentHeaderToken."],
+["Major version",25,1,"i","Always 1."],
+["Minor version",26,1,"i","Always 1."],
+["Flags",27,1,"i","Always 0."],
+["Open start element token",28,1,"h","0x01 = element start, no attributes. (0x41 would mean an attribute list follows.)"],
+["Dependency identifier",29,2,"h","0xffff = -1 = not set."],
+["Data size",31,4,"i","Bytes from the name offset up to the end element tag."],
+["Element name offset",35,4,"h","Offset from the chunk start where the name (EventID) is stored."],
+["Close start element token",39,1,"h","0x02 = the closing > of the XML start tag."],
+["Value token",40,1,"h","0x05 = value text (no more data follows). 0x45 = more data follows."],
+["Value type",41,1,"h","0x01 = StringType (UTF-16LE)."],
+["Number of characters",42,2,"i","3 characters: 4, 0, 0."],
+["Value data",44,6,"u","UTF-16LE: 34 00 30 00 30 00 = 400."],
+["End element token",50,1,"h","0x04 = </EventID>."],
+["EOF token",51,1,"h","0x00 = end of Binary XML."],
+["Copy of size",52,4,"i","Copy of the size. If it differs from size, the record is corrupt."]];
+
+// ---- Record with Qualifiers: <EventID Qualifiers="16384">7036</EventID>
+const rec2=new Array(81).fill(0);
+put(rec2,0,0x2a2a,4);put(rec2,4,81,4);put(rec2,8,2,8);put(rec2,16,T,8);
+rec2[24]=0x0f;rec2[25]=1;rec2[26]=1;rec2[27]=0;
+rec2[28]=0x41;put(rec2,29,0xffff,2);put(rec2,31,41,4);put(rec2,35,0x230,4);
+put(rec2,39,19,4);rec2[43]=0x06;put(rec2,44,0x248,4);
+rec2[48]=0x05;rec2[49]=1;put(rec2,50,5,2);
+"16384".split('').forEach((c,i)=>{rec2[52+2*i]=c.charCodeAt(0)});
+rec2[62]=0x02;rec2[63]=0x05;rec2[64]=1;put(rec2,65,4,2);
+"7036".split('').forEach((c,i)=>{rec2[67+2*i]=c.charCodeAt(0)});
+rec2[75]=0x04;rec2[76]=0;put(rec2,77,81,4);
+const recF2=[
+["Signature",0,4,"h","2a 2a 00 00 = start of a record."],
+["Size",4,4,"i","Size of the whole record. Now 81 bytes because of the attribute."],
+["Event record identifier",8,8,"i","Unique ID of the record."],
+["Written date/time",16,8,"t","FILETIME: when the record was written."],
+["Fragment header token",24,1,"h","0x0f = BinXmlFragmentHeaderToken."],
+["Major version",25,1,"i","Always 1."],
+["Minor version",26,1,"i","Always 1."],
+["Flags",27,1,"i","Always 0."],
+["Open start element token",28,1,"h","0x41 = element start WITH an attribute list (0x01 would mean no attributes)."],
+["Dependency identifier",29,2,"h","0xffff = -1 = not set."],
+["Data size",31,4,"i","41 = name offset (4) + attribute list (4 + 19) + close tag (1) + value (12) + end tag (1)."],
+["Element name offset",35,4,"h","Offset in the chunk where the name EventID is stored."],
+["Attribute list data size",39,4,"i","19 = attribute token (1) + name offset (4) + value (14). Does not include these 4 bytes."],
+["Attribute token",43,1,"h","0x06 = an attribute, and no more attributes follow. (0x46 = another attribute follows.)"],
+["Attribute name offset",44,4,"h","Offset in the chunk where the name Qualifiers is stored (UTF-16LE)."],
+["Attribute value token",48,1,"h","0x05 = value text of the attribute."],
+["Value type",49,1,"h","0x01 = StringType."],
+["Number of characters",50,2,"i","5 characters: 1, 6, 3, 8, 4."],
+["Qualifiers value",52,10,"u","QUALIFIERS = 16384 (0x4000). Simplified here as text. In real logs it is a UInt16 substitution value stored as 00 40."],
+["Close start element token",62,1,"h","0x02 = the closing > of the start tag."],
+["Content value token",63,1,"h","0x05 = value text of the element content."],
+["Value type",64,1,"h","0x01 = StringType."],
+["Number of characters",65,2,"i","4 characters: 7, 0, 3, 6."],
+["EventID value",67,8,"u","EVENT ID = 7036 (0x1b7c)."],
+["End element token",75,1,"h","0x04 = </EventID>."],
+["EOF token",76,1,"h","0x00 = end of Binary XML."],
+["Copy of size",77,4,"i","Must equal size (81)."]];
+
+// ---- Chunk header
+const ch=new Array(128).fill(0);
+puts(ch,0,"ElfChnk");put(ch,8,1,8);put(ch,16,1,8);put(ch,24,1,8);put(ch,32,1,8);
+put(ch,40,128,4);put(ch,44,512,4);put(ch,48,512+56,4);
+const recCRC=crc32(rec);put(ch,52,recCRC,4);
+put(ch,124,crc32(ch.slice(0,120).concat(new Array(384).fill(0))),4);
+const chF=[
+["Signature",0,8,"s","ElfChnk + 00."],
+["First event record number",8,8,"i","First record number in the chunk."],
+["Last event record number",16,8,"i","Last record number in the chunk. Records = last - first + 1."],
+["First event record identifier",24,8,"i","ID of the first record."],
+["Last event record identifier",32,8,"i","ID of the last record."],
+["Header size",40,4,"i","128."],
+["Last event record data offset",44,4,"h","Offset of the last record, from the chunk start (512 = right after the header)."],
+["Free space offset",48,4,"h","Chunk is empty from here on. 512 + 56 = 568 = 0x238."],
+["Event records checksum",52,4,"h","CRC32 of the event record bytes only (our 56-byte record)."],
+["Unknown (zeros)",56,64,"r","Unknown in the spec."],
+["Unknown (flags?)",120,4,"h","Unknown in the spec."],
+["Header checksum",124,4,"h","CRC32 of bytes 0-120 plus bytes 128-512."]];
+
+function val(b,f){const [n,o,l,t]=f;const s=b.slice(o,o+l);
+let v=0n;for(let i=l-1;i>=0&&l<=8;i--)v=(v<<8n)|BigInt(s[i]);
+if(t=="s")return '"'+String.fromCharCode(...s.filter(x=>x))+'\\x00"';
+if(t=="i")return v.toString();
+if(t=="h")return '0x'+v.toString(16).padStart(l*2,'0');
+if(t=="t")return v+' = '+ftDate(v);
+if(t=="u")return '"'+String.fromCharCode(...s.filter((x,i)=>i%2==0))+'"';
+return 'zeros / unknown'}
+
+function view(hx,inf,tb,bytes,F){
+let rows='';const owner=[];F.forEach((f,i)=>{for(let k=0;k<f[2];k++)owner[f[1]+k]=i});
+for(let r=0;r<bytes.length;r+=16){
+let line='<div><span class="off">'+r.toString(16).padStart(4,'0')+'</span>',a='';
+for(let k=r;k<Math.min(r+16,bytes.length);k++){const x=bytes[k];
+line+='<span class="b" data-f="'+owner[k]+'" style="background:var(--c'+(owner[k]%6)+')">'+H(x)+'</span>';
+a+=(x>=32&&x<127)?String.fromCharCode(x).replace('<','&lt;'):'.'}
+rows+=line+'<span class="asc">'+a+'</span></div>'}
+hx.innerHTML=rows;
+tb.innerHTML='<tr><th>Field</th><th>Offset</th><th>Size</th><th>Value</th></tr>'+F.map((f,i)=>
+'<tr class="f" data-f="'+i+'"><td><span class="sw" style="background:var(--c'+(i%6)+')"></span>'+f[0]+'</td><td>'+f[1]+'</td><td>'+f[2]+'</td><td>'+val(bytes,f)+'</td></tr>').join('');
+function sel(i){document.querySelectorAll('[data-f]').forEach(e=>{if(!hx.contains(e)&&!tb.contains(e))return;e.classList.toggle('sel',e.dataset.f==i)});
+const f=F[i];inf.innerHTML='<b>'+f[0]+'</b> &nbsp;(offset '+f[1]+', '+f[2]+' byte)<br>Value: <code>'+val(bytes,f)+'</code><br>'+f[4]}
+[hx,tb].forEach(c=>c.addEventListener('click',e=>{const t=e.target.closest('[data-f]');if(t)sel(t.dataset.f)}));
+sel(0)}
+
+view($('#hx1'),$('#in1'),$('#tb1'),fh,fhF);
+view($('#hx2'),$('#in2'),$('#tb2'),ch,chF);
+let cur=0;function drawRec(){const R=cur?rec2:rec;view($('#hx3'),$('#in3'),$('#tb3'),R,cur?recF2:recF);$('#xml').textContent=cur?'<EventID Qualifiers="16384">7036</EventID>':'<EventID>400</EventID>';
+const L=R.length,s=BigInt(R[4]|R[5]<<8|R[6]<<16|R[7]<<24),c=R[L-4]|R[L-3]<<8|R[L-2]<<16|R[L-1]<<24;
+$('#sz').textContent=s;$('#cp').textContent=c;
+const ok=Number(s)==c;$('#chk').innerHTML=ok?'<span class="ok">OK, record is valid</span>':'<span class="bad">MISMATCH, record is corrupt</span>'}
+
+$('#corrupt').onclick=()=>{const R=cur?rec2:rec;put(R,R.length-4,0,4);drawRec()};
+$('#fix').onclick=()=>{const R=cur?rec2:rec;put(R,R.length-4,R.length,4);drawRec()};
+drawRec();
+
+function drawRec2(){view($('#hx4'),$('#in4'),$('#tb4'),rec2,recF2);
+const L=rec2.length,s=rec2[4]|rec2[5]<<8|rec2[6]<<16|rec2[7]<<24,c=rec2[L-4]|rec2[L-3]<<8|rec2[L-2]<<16|rec2[L-1]<<24;
+$('#sz4').textContent=s;$('#cp4').textContent=c;
+$('#chk4').innerHTML=s==c?'<span class="ok">OK, record is valid</span>':'<span class="bad">MISMATCH, record is corrupt</span>'}
+$('#corrupt4').onclick=()=>{put(rec2,rec2.length-4,0,4);drawRec2()};
+$('#fix4').onclick=()=>{put(rec2,rec2.length-4,rec2.length,4);drawRec2()};
+drawRec2();
+
+// ---- Layout bars
+const col=['var(--c0)','var(--c3)','var(--c2)','var(--c1)'];
+$('#bar1').innerHTML='<div style="flex:1;background:var(--c0)">File header<br>4096 B</div><div style="flex:4;background:var(--c3)">Chunk 0 (65536 B)</div><div style="flex:4;background:var(--c2)">Chunk 1 (65536 B)</div><div style="flex:2;background:var(--c1)">Chunk 2 ... N</div>';
+$('#bar2').innerHTML='<div style="flex:1.2;background:var(--c4)">Chunk header<br>512 B</div><div style="flex:4;background:var(--c5)">Event records<br>(variable size, each starts with 2a 2a 00 00)</div><div style="flex:2;background:var(--card)">Unused space</div>';
+function cn(){const n=Math.max(0,+$('#cn').value||0);const o=4096+n*65536;
+$('#cnout').innerHTML='Chunk '+n+' offset = 4096 + '+n+' × 65536 = <b>'+o+'</b> (0x'+o.toString(16)+'). First record starts at '+(o+512)+'.'}
+$('#cn').oninput=cn;cn();
+
+// ---- Bits
+function bits(){const q=BigInt(+$('#q').value||0),e=BigInt(+$('#e').value||0);
+const m=((q<<16n)|e)&0xffffffffn;$('#mid').textContent='0x'+m.toString(16).padStart(8,'0')+' ('+m+')';
+const names=['c1','c3','c2','c4','c5'],grp=[[31,30,'Severity'],[29,29,'Customer'],[28,28,'Reserved'],[27,16,'Facility'],[15,0,'Code']];
+let h='';grp.forEach((g,gi)=>{for(let b=g[0];b>=g[1];b--)h+='<span style="background:var(--c'+gi+')">'+((m>>BigInt(b))&1n)+'</span>';h+='<span class="gap"></span>'});
+$('#bits').innerHTML=h;
+const sev=['Success','Informational','Warning','Error'][Number((m>>30n)&3n)];
+$('#bitout').innerHTML='<table><tr><td><span class="sw" style="background:var(--c0)"></span>Severity</td><td>'+((m>>30n)&3n)+' = '+sev+'</td></tr><tr><td><span class="sw" style="background:var(--c1)"></span>Customer flag</td><td>'+((m>>29n)&1n)+(((m>>29n)&1n)?' = customer code':' = system code')+'</td></tr><tr><td><span class="sw" style="background:var(--c2)"></span>Reserved</td><td>'+((m>>28n)&1n)+'</td></tr><tr><td><span class="sw" style="background:var(--c3)"></span>Facility</td><td>'+((m>>16n)&0xfffn)+'</td></tr><tr><td><span class="sw" style="background:var(--c4)"></span>Code</td><td>'+(m&0xffffn)+'</td></tr></table>'}
+$('#q').oninput=$('#e').oninput=bits;bits();
+$('#ft').value=T.toString();
+function ft(){try{$('#ftout').innerHTML='= <b>'+ftDate($('#ft').value.trim())+'</b>'}catch(e){}}
+$('#ft').oninput=ft;ft();
+$('#now').onclick=()=>{$('#ft').value=toFT(Date.now()).toString();ft()};
+
+// ---- Tabs
+const tabs=['Layout','File header','Chunk header','Event record','Event record + Qualifiers','Bits'];
+$('#nav').innerHTML=tabs.map((t,i)=>'<button data-t="'+i+'">'+(i+1)+'. '+t+'</button>').join('');
+function show(i){document.querySelectorAll('section').forEach((s,k)=>s.classList.toggle('on',k==i));
+document.querySelectorAll('#nav button').forEach((b,k)=>b.classList.toggle('on',k==i))}
+$('#nav').onclick=e=>{const b=e.target.closest('button');if(b)show(+b.dataset.t)};
+show(0);
+</script></body></html>
